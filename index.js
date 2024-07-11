@@ -3,46 +3,42 @@ const express = require("express");
 const axios = require("axios");
 
 const app = express();
-const port = process.env.PORT || 9876;
+const port = process.env.PORT || 8876;
 
-// In-memory storage for numbers
-let numbers = [];
-const windowSize = 10;
+let dataStore = [];
+const storageLimit = 10;
 
-// Bearer token for authentication
-const bearerToken = process.env.BEARER_TOKEN;
+const authToken = process.env.AUTH_TOKEN;
 
-// Utility functions
-const isValidID = (id) => ["p", "f", "e", "r"].includes(id);
+const isValidIdentifier = (id) => ["p", "f", "e", "r"].includes(id);
 
-const getApiEndpoint = (id) => {
+const getAPIEndpoint = (id) => {
   switch (id) {
     case "p":
-      return "http://20.244.56.144/test/primes";
+      return "http://example.com/api/primes";
     case "f":
-      return "http://20.244.56.144/test/fibo";
+      return "http://example.com/api/fibonacci";
     case "e":
-      return "http://20.244.56.144/test/even";
+      return "http://example.com/api/even";
     case "r":
-      return "http://20.244.56.144/test/random";
+      return "http://example.com/api/random";
     default:
       return "";
   }
 };
 
-// Fetch numbers from third-party API
-const fetchNumbers = async (id) => {
+const fetchDataFromAPI = async (id) => {
   try {
-    const endpoint = getApiEndpoint(id);
+    const endpoint = getAPIEndpoint(id);
     const response = await axios.get(endpoint, {
       headers: {
-        Authorization: `Bearer ${bearerToken}`,
+        Authorization: `Bearer ${authToken}`,
       },
       timeout: 500,
     });
-    return response.data.numbers;
+    return response.data.numbers || [];
   } catch (error) {
-    console.error(error);
+    console.error("Error fetching data:", error.message);
     return [];
   }
 };
@@ -53,39 +49,36 @@ const calculateAverage = (nums) => {
   return sum / nums.length;
 };
 
-// Route to handle the number ID requests
-app.get("/numbers/:numberid", async (req, res) => {
-  const { numberid } = req.params;
+app.get("/numbers/:id", async (req, res) => {
+  const { id } = req.params;
 
-  if (!isValidID(numberid)) {
-    return res.status(400).json({ error: "Invalid number ID" });
+  if (!isValidIdentifier(id)) {
+    return res.status(400).json({ error: "Invalid identifier" });
   }
 
-  const fetchedNumbers = await fetchNumbers(numberid);
+  const fetchedData = await fetchDataFromAPI(id);
 
-  if (fetchedNumbers.length > 0) {
-    fetchedNumbers.forEach((num) => {
-      if (!numbers.includes(num)) {
-        numbers.push(num);
-        if (numbers.length > windowSize) {
-          numbers.shift();
+  if (fetchedData.length > 0) {
+    fetchedData.forEach((num) => {
+      if (!dataStore.includes(num)) {
+        dataStore.push(num);
+        if (dataStore.length > storageLimit) {
+          dataStore.shift();
         }
       }
     });
   }
 
-  const avg = calculateAverage(numbers);
+  const avg = calculateAverage(dataStore);
 
   res.json({
-    windowPrevState: numbers.slice(0, -fetchedNumbers.length),
-    windowCurrState: numbers,
-    numbers: fetchedNumbers,
-    avg: avg.toFixed(2),
+    previousData: dataStore.slice(0, -fetchedData.length),
+    currentData: dataStore,
+    fetchedData,
+    average: avg.toFixed(2),
   });
 });
 
 app.listen(port, () => {
-  console.log(
-    `Average Calculator microservice running on http://localhost:${port}`
-  );
+  console.log(`Server is running on http://localhost:${port}`);
 });
